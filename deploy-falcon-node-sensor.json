@@ -1,0 +1,179 @@
+{
+  "properties": {
+    "displayName": "Deploy Falcon Node Sensor",
+    "policyType": "Custom",
+    "mode": "Microsoft.Kubernetes.Data",
+    "description": "Deploy CrowdStrike Falcon Node Sensor (DaemonSet) to protect Linux nodes",
+    "metadata": {
+      "category": "Kubernetes",
+      "version": "1.0.0"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect",
+          "description": "Enable or disable the execution of the policy"
+        },
+        "allowedValues": [
+          "DeployIfNotExists",
+          "AuditIfNotExists",
+          "Disabled"
+        ],
+        "defaultValue": "DeployIfNotExists"
+      },
+      "falconClientId": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Falcon Client ID",
+          "description": "CrowdStrike Falcon API Client ID"
+        }
+      },
+      "falconClientSecretUri": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Falcon Client Secret Key Vault URI",
+          "description": "Azure Key Vault URI for Falcon API Client Secret"
+        }
+      },
+      "falconCloud": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Falcon Cloud Region",
+          "description": "CrowdStrike Falcon Cloud region"
+        },
+        "allowedValues": [
+          "autodiscover",
+          "us-1",
+          "us-2",
+          "eu-1",
+          "us-gov-1"
+        ],
+        "defaultValue": "autodiscover"
+      },
+      "updatePolicy": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Falcon Update Policy",
+          "description": "Update policy name from Falcon Console"
+        },
+        "defaultValue": "platform_default"
+      }
+    },
+    "policyRule": {
+      "if": {
+        "field": "type",
+        "equals": "Microsoft.ContainerService/managedClusters"
+      },
+      "then": {
+        "effect": "[parameters('effect')]",
+        "details": {
+          "type": "Microsoft.ContainerService/managedClusters",
+          "existenceCondition": {
+            "field": "Microsoft.ContainerService/managedClusters/agentPoolProfiles[*].osType",
+            "equals": "Linux"
+          },
+          "roleDefinitionIds": [
+            "/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c"
+          ],
+          "deployment": {
+            "properties": {
+              "mode": "Incremental",
+              "template": {
+                "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                "contentVersion": "1.0.0.0",
+                "parameters": {
+                  "clusterName": {
+                    "type": "string"
+                  },
+                  "location": {
+                    "type": "string"
+                  },
+                  "falconClientId": {
+                    "type": "string"
+                  },
+                  "falconClientSecretUri": {
+                    "type": "string"
+                  },
+                  "acrName": {
+                    "type": "string"
+                  },
+                  "falconCloud": {
+                    "type": "string"
+                  },
+                  "updatePolicy": {
+                    "type": "string"
+                  }
+                },
+                "resources": [
+                  {
+                    "type": "Microsoft.Resources/deploymentScripts",
+                    "apiVersion": "2020-10-01",
+                    "name": "deploy-falcon-node-sensor",
+                    "location": "[parameters('location')]",
+                    "kind": "AzureCLI",
+                    "identity": {
+                      "type": "SystemAssigned"
+                    },
+                    "properties": {
+                      "azCliVersion": "2.45.0",
+                      "scriptContent": "#!/bin/bash\nset -e\n\n# Get AKS credentials\naz aks get-credentials --resource-group $AZ_RESOURCE_GROUP --name $CLUSTER_NAME --overwrite-existing\n\n# Create namespace if it doesn't exist\nkubectl create namespace falcon-system --dry-run=client -o yaml | kubectl apply -f -\n\n# Get Falcon Client Secret from Key Vault\nFALCON_CLIENT_SECRET=$(az keyvault secret show --vault-name $(echo $FALCON_CLIENT_SECRET_URI | cut -d'/' -f3 | cut -d'.' -f1) --name $(echo $FALCON_CLIENT_SECRET_URI | rev | cut -d'/' -f1 | rev) --query value -o tsv)\n\n# Create Falcon API secret\nkubectl create secret generic falcon-api-secret \\\n  --from-literal=falcon-client-id=$FALCON_CLIENT_ID \\\n  --from-literal=falcon-client-secret=$FALCON_CLIENT_SECRET \\\n  -n falcon-system \\\n  --dry-run=client -o yaml | kubectl apply -f -\n\n# Create FalconNodeSensor CR\ncat <<EOF | kubectl apply -f -\napiVersion: falcon.crowdstrike.com/v1alpha1\nkind: FalconNodeSensor\nmetadata:\n  name: falcon-node-sensor\n  namespace: falcon-system\nspec:\n  falcon_api:\n    client_id: $FALCON_CLIENT_ID\n    cloud_region: $FALCON_CLOUD\n  node:\n    backend: bpf\n    advanced:\n      updatePolicy: $UPDATE_POLICY\n      autoUpdate: normal\n  falconSecret:\n    enabled: true\n    namespace: falcon-system\n    secretName: falcon-api-secret\nEOF\n\n# Wait for DaemonSet to be ready\necho \"Waiting for Falcon Node Sensor DaemonSet to be ready...\"\nkubectl wait --for=condition=Ready daemonset/falcon-node-sensor -n falcon-system --timeout=600s || true\n\n# Verify deployment\nkubectl get pods -n falcon-system -l app=falcon-node-sensor\necho \"Falcon Node Sensor deployed successfully\"",
+                      "environmentVariables": [
+                        {
+                          "name": "CLUSTER_NAME",
+                          "value": "[parameters('clusterName')]"
+                        },
+                        {
+                          "name": "AZ_RESOURCE_GROUP",
+                          "value": "[resourceGroup().name]"
+                        },
+                        {
+                          "name": "FALCON_CLIENT_ID",
+                          "value": "[parameters('falconClientId')]"
+                        },
+                        {
+                          "name": "FALCON_CLIENT_SECRET_URI",
+                          "value": "[parameters('falconClientSecretUri')]"
+                        },
+                        {
+                          "name": "FALCON_CLOUD",
+                          "value": "[parameters('falconCloud')]"
+                        },
+                        {
+                          "name": "UPDATE_POLICY",
+                          "value": "[parameters('updatePolicy')]"
+                        }
+                      ],
+                      "retentionInterval": "P1D",
+                      "timeout": "PT45M"
+                    }
+                  }
+                ]
+              },
+              "parameters": {
+                "clusterName": {
+                  "value": "[field('name')]"
+                },
+                "location": {
+                  "value": "[field('location')]"
+                },
+                "falconClientId": {
+                  "value": "[parameters('falconClientId')]"
+                },
+                "falconClientSecretUri": {
+                  "value": "[parameters('falconClientSecretUri')]"
+                },
+                "falconCloud": {
+                  "value": "[parameters('falconCloud')]"
+                },
+                "updatePolicy": {
+                  "value": "[parameters('updatePolicy')]"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

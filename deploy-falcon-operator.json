@@ -1,0 +1,96 @@
+{
+  "properties": {
+    "displayName": "Deploy Falcon Operator",
+    "policyType": "Custom",
+    "mode": "Microsoft.Kubernetes.Data",
+    "description": "Deploy CrowdStrike Falcon Operator to AKS clusters",
+    "metadata": {
+      "category": "Kubernetes",
+      "version": "1.0.0"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect",
+          "description": "Enable or disable the execution of the policy"
+        },
+        "allowedValues": [
+          "DeployIfNotExists",
+          "AuditIfNotExists",
+          "Disabled"
+        ],
+        "defaultValue": "DeployIfNotExists"
+      }
+    },
+    "policyRule": {
+      "if": {
+        "field": "type",
+        "equals": "Microsoft.ContainerService/managedClusters"
+      },
+      "then": {
+        "effect": "[parameters('effect')]",
+        "details": {
+          "type": "Microsoft.ContainerService/managedClusters",
+          "existenceCondition": {
+            "field": "Microsoft.ContainerService/managedClusters/addonProfiles.omsagent.enabled",
+            "equals": "true"
+          },
+          "roleDefinitionIds": [
+            "/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c"
+          ],
+          "deployment": {
+            "properties": {
+              "mode": "Incremental",
+              "template": {
+                "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+                "contentVersion": "1.0.0.0",
+                "parameters": {
+                  "clusterName": {
+                    "type": "string"
+                  },
+                  "location": {
+                    "type": "string"
+                  }
+                },
+                "resources": [
+                  {
+                    "type": "Microsoft.Resources/deploymentScripts",
+                    "apiVersion": "2020-10-01",
+                    "name": "deploy-falcon-operator",
+                    "location": "[parameters('location')]",
+                    "kind": "AzureCLI",
+                    "properties": {
+                      "azCliVersion": "2.45.0",
+                      "scriptContent": "#!/bin/bash\nset -e\n\n# Get AKS credentials\naz aks get-credentials --resource-group $(echo $AZ_RESOURCE_GROUP) --name $CLUSTER_NAME --overwrite-existing\n\n# Deploy Falcon Operator\nkubectl apply -f https://github.com/CrowdStrike/falcon-operator/releases/latest/download/falcon-operator.yaml\n\n# Wait for operator to be ready\nkubectl wait --for=condition=Available deployment/falcon-operator-controller-manager -n falcon-operator --timeout=300s\n\n# Verify deployment\nkubectl get pods -n falcon-operator\necho \"Falcon Operator deployed successfully\"",
+                      "environmentVariables": [
+                        {
+                          "name": "CLUSTER_NAME",
+                          "value": "[parameters('clusterName')]"
+                        },
+                        {
+                          "name": "AZ_RESOURCE_GROUP",
+                          "value": "[resourceGroup().name]"
+                        }
+                      ],
+                      "retentionInterval": "P1D",
+                      "timeout": "PT30M"
+                    }
+                  }
+                ]
+              },
+              "parameters": {
+                "clusterName": {
+                  "value": "[field('name')]"
+                },
+                "location": {
+                  "value": "[field('location')]"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

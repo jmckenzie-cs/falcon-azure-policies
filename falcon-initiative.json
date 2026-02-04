@@ -1,0 +1,157 @@
+{
+  "properties": {
+    "displayName": "Falcon Security Baseline Initiative",
+    "description": "Deploy and enforce CrowdStrike Falcon Operator with all security components across AKS clusters",
+    "metadata": {
+      "category": "Kubernetes",
+      "version": "1.0.0"
+    },
+    "parameters": {
+      "effect": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Effect",
+          "description": "Enable or disable the execution of the policy"
+        },
+        "allowedValues": [
+          "DeployIfNotExists",
+          "AuditIfNotExists",
+          "Disabled"
+        ],
+        "defaultValue": "DeployIfNotExists"
+      },
+      "falconClientId": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Falcon Client ID",
+          "description": "CrowdStrike Falcon API Client ID"
+        }
+      },
+      "falconClientSecretUri": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Falcon Client Secret Key Vault URI",
+          "description": "Azure Key Vault URI for Falcon API Client Secret"
+        }
+      },
+      "falconCloud": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Falcon Cloud Region",
+          "description": "CrowdStrike Falcon Cloud region"
+        },
+        "allowedValues": [
+          "autodiscover",
+          "us-1",
+          "us-2",
+          "eu-1",
+          "us-gov-1"
+        ],
+        "defaultValue": "autodiscover"
+      },
+      "updatePolicy": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Falcon Update Policy",
+          "description": "Update policy name from Falcon Console"
+        },
+        "defaultValue": "platform_default"
+      },
+      "enableImageScanning": {
+        "type": "Boolean",
+        "metadata": {
+          "displayName": "Enable Image Scanning",
+          "description": "Deploy Falcon Image Analyzer for runtime scanning"
+        },
+        "defaultValue": true
+      },
+      "admissionFailurePolicy": {
+        "type": "String",
+        "metadata": {
+          "displayName": "Admission Failure Policy",
+          "description": "Action when admission webhook fails"
+        },
+        "allowedValues": [
+          "Ignore",
+          "Fail"
+        ],
+        "defaultValue": "Fail"
+      }
+    },
+    "policyDefinitions": [
+      {
+        "policyDefinitionId": "/providers/Microsoft.Management/managementGroups/{managementGroupId}/providers/Microsoft.Authorization/policyDefinitions/deploy-falcon-operator",
+        "parameters": {
+          "effect": {
+            "value": "[parameters('effect')]"
+          }
+        }
+      },
+      {
+        "policyDefinitionId": "/providers/Microsoft.Management/managementGroups/{managementGroupId}/providers/Microsoft.Authorization/policyDefinitions/deploy-falcon-node-sensor",
+        "parameters": {
+          "effect": {
+            "value": "[parameters('effect')]"
+          },
+          "falconClientId": {
+            "value": "[parameters('falconClientId')]"
+          },
+          "falconClientSecretUri": {
+            "value": "[parameters('falconClientSecretUri')]"
+          },
+          "falconCloud": {
+            "value": "[parameters('falconCloud')]"
+          },
+          "updatePolicy": {
+            "value": "[parameters('updatePolicy')]"
+          }
+        }
+      },
+      {
+        "policyDefinitionId": "/providers/Microsoft.Management/managementGroups/{managementGroupId}/providers/Microsoft.Authorization/policyDefinitions/deploy-falcon-admission-controller",
+        "parameters": {
+          "effect": {
+            "value": "[parameters('effect')]"
+          },
+          "falconClientId": {
+            "value": "[parameters('falconClientId')]"
+          },
+          "falconClientSecretUri": {
+            "value": "[parameters('falconClientSecretUri')]"
+          },
+          "falconCloud": {
+            "value": "[parameters('falconCloud')]"
+          },
+          "admissionFailurePolicy": {
+            "value": "[parameters('admissionFailurePolicy')]"
+          }
+        }
+      },
+      {
+        "policyDefinitionId": "/providers/Microsoft.Management/managementGroups/{managementGroupId}/providers/Microsoft.Authorization/policyDefinitions/deploy-falcon-image-analyzer",
+        "parameters": {
+          "effect": {
+            "value": "[if(parameters('enableImageScanning'), parameters('effect'), 'Disabled')]"
+          },
+          "falconClientId": {
+            "value": "[parameters('falconClientId')]"
+          },
+          "falconClientSecretUri": {
+            "value": "[parameters('falconClientSecretUri')]"
+          },
+          "falconCloud": {
+            "value": "[parameters('falconCloud')]"
+          }
+        }
+      },
+      {
+        "policyDefinitionId": "/providers/Microsoft.Management/managementGroups/{managementGroupId}/providers/Microsoft.Authorization/policyDefinitions/audit-falcon-compliance",
+        "parameters": {
+          "effect": {
+            "value": "Audit"
+          }
+        }
+      }
+    ]
+  }
+}

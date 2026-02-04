@@ -1,0 +1,19 @@
+# Azure Policy Files
+*.log
+*.tmp
+.DS_Store
+
+# IDE files
+.vscode/
+.idea/
+
+# Azure CLI cache
+.azure/
+
+# Terraform files (if used for deployment)
+*.tfstate
+*.tfstate.*
+.terraform/
+
+# Azure Resource Manager templates (generated)
+generated/
