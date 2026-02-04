@@ -3,6 +3,9 @@
 *.tmp
 .DS_Store
 
+# Backup files created by deployment script
+*-backup.json
+
 # IDE files
 .vscode/
 .idea/

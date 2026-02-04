@@ -11,9 +11,246 @@ The Azure Policy Initiative deploys:
 4. **Falcon Image Analyzer** - Runtime image scanning and assessment
 5. **Compliance Auditing** - Automated compliance reporting
 
-## 🚀 Quick Start
+## 🔄 How Azure Policies Work
 
-### Prerequisites
+The JSON files in this repository are **policy definition templates** that need to be deployed to Azure before they can enforce compliance:
+
+1. **JSON Files** (this repo) → **Upload to Azure** as Policy Definitions
+2. **Policy Definitions** → **Group together** as Policy Initiative
+3. **Policy Initiative** → **Assign to scope** (subscription/resource group)
+4. **Policy Assignment** → **Automatic deployment** across AKS clusters
+
+## 🚀 Deployment Process
+
+### Step 1: Clone this Repository
+
+```bash
+git clone https://github.com/jmckenzie-cs/falcon-azure-policies.git
+cd falcon-azure-policies
+```
+
+### Step 2: Deploy Individual Policy Definitions
+
+Upload each JSON file as an Azure Policy Definition:
+
+```bash
+# Set your management group or subscription scope
+SCOPE_TYPE="management-group"  # or "subscription"
+SCOPE_ID="your-management-group-id"  # or "your-subscription-id"
+
+# Deploy Falcon Operator Policy
+az policy definition create \
+  --name "deploy-falcon-operator" \
+  --display-name "Deploy Falcon Operator" \
+  --description "Deploy CrowdStrike Falcon Operator to AKS clusters" \
+  --rules @deploy-falcon-operator.json \
+  --mode "Microsoft.Kubernetes.Data" \
+  --${SCOPE_TYPE} ${SCOPE_ID}
+
+# Deploy Node Sensor Policy
+az policy definition create \
+  --name "deploy-falcon-node-sensor" \
+  --display-name "Deploy Falcon Node Sensor" \
+  --description "Deploy Falcon Node Sensor DaemonSet for kernel protection" \
+  --rules @deploy-falcon-node-sensor.json \
+  --mode "Microsoft.Kubernetes.Data" \
+  --${SCOPE_TYPE} ${SCOPE_ID}
+
+# Deploy Admission Controller Policy
+az policy definition create \
+  --name "deploy-falcon-admission-controller" \
+  --display-name "Deploy Falcon Admission Controller" \
+  --description "Deploy Falcon Kubernetes Admission Controller for policy enforcement" \
+  --rules @deploy-falcon-admission-controller.json \
+  --mode "Microsoft.Kubernetes.Data" \
+  --${SCOPE_TYPE} ${SCOPE_ID}
+
+# Deploy Image Analyzer Policy
+az policy definition create \
+  --name "deploy-falcon-image-analyzer" \
+  --display-name "Deploy Falcon Image Analyzer" \
+  --description "Deploy Falcon Image Analyzer for runtime image scanning" \
+  --rules @deploy-falcon-image-analyzer.json \
+  --mode "Microsoft.Kubernetes.Data" \
+  --${SCOPE_TYPE} ${SCOPE_ID}
+
+# Deploy Compliance Audit Policy
+az policy definition create \
+  --name "audit-falcon-compliance" \
+  --display-name "Audit Falcon Security Compliance" \
+  --description "Audit compliance of CrowdStrike Falcon components" \
+  --rules @audit-falcon-compliance.json \
+  --mode "Microsoft.Kubernetes.Data" \
+  --${SCOPE_TYPE} ${SCOPE_ID}
+```
+
+### Step 3: Create the Policy Initiative
+
+First, update the `falcon-initiative.json` file to reference your actual management group or subscription:
+
+```bash
+# Update the policyDefinitionId paths in falcon-initiative.json
+# Replace {managementGroupId} with your actual management group ID
+# OR replace the path format for subscription scope
+
+# For Management Group scope:
+sed -i 's/{managementGroupId}/your-actual-mg-id/g' falcon-initiative.json
+
+# For Subscription scope, replace the entire path pattern:
+# "/providers/Microsoft.Authorization/policyDefinitions/policy-name"
+```
+
+Then create the initiative:
+
+```bash
+az policy set-definition create \
+  --name "falcon-security-baseline" \
+  --display-name "Falcon Security Baseline Initiative" \
+  --description "Deploy and enforce CrowdStrike Falcon security across AKS clusters" \
+  --definitions @falcon-initiative.json \
+  --${SCOPE_TYPE} ${SCOPE_ID}
+```
+
+### Step 4: Assign the Policy Initiative
+
+Now assign the initiative to your target scope with your specific parameters:
+
+```bash
+# Assign the initiative to your subscription/resource group
+az policy assignment create \
+  --name "falcon-security-assignment" \
+  --display-name "Falcon Security Baseline Assignment" \
+  --policy-set-definition "falcon-security-baseline" \
+  --scope "/subscriptions/your-subscription-id" \
+  --identity-scope "/subscriptions/your-subscription-id" \
+  --location "East US" \
+  --assign-identity \
+  --params '{
+    "falconClientId": {"value": "YOUR_FALCON_CLIENT_ID"},
+    "falconClientSecretUri": {"value": "https://your-keyvault.vault.azure.net/secrets/falcon-client-secret"},
+    "falconCloud": {"value": "autodiscover"},
+    "updatePolicy": {"value": "platform_default"},
+    "enableImageScanning": {"value": true},
+    "admissionFailurePolicy": {"value": "Fail"}
+  }'
+```
+
+### Step 5: Grant Key Vault Access
+
+Grant the policy assignment's managed identity access to your Key Vault:
+
+```bash
+# Get the policy assignment's managed identity
+POLICY_IDENTITY=$(az policy assignment show \
+  --name "falcon-security-assignment" \
+  --scope "/subscriptions/your-subscription-id" \
+  --query identity.principalId -o tsv)
+
+# Grant Key Vault access
+az keyvault set-policy \
+  --name "your-keyvault" \
+  --object-id $POLICY_IDENTITY \
+  --secret-permissions get list
+```
+
+### Step 6: Verify Deployment
+
+```bash
+# Check policy compliance
+az policy state list --policy-assignment "falcon-security-assignment"
+
+# Verify Falcon components in AKS (after policies deploy)
+az aks get-credentials --resource-group myRG --name myAKS
+kubectl get pods -n falcon-operator
+kubectl get falconnodesensor -A
+kubectl get falconadmission -A
+kubectl get falconimageanalyzer -A
+```
+
+## ⚡ Quick Deployment Script
+
+For automated deployment, you can use this all-in-one script:
+
+```bash
+#!/bin/bash
+set -e
+
+# Configuration
+SCOPE_TYPE="subscription"  # or "management-group"
+SCOPE_ID="your-subscription-id"  # or management group ID
+FALCON_CLIENT_ID="YOUR_FALCON_CLIENT_ID"
+KEYVAULT_URI="https://your-keyvault.vault.azure.net/secrets/falcon-client-secret"
+
+echo "🚀 Deploying Falcon Azure Policies..."
+
+# Deploy all policy definitions
+policies=("deploy-falcon-operator" "deploy-falcon-node-sensor" "deploy-falcon-admission-controller" "deploy-falcon-image-analyzer" "audit-falcon-compliance")
+for policy in "${policies[@]}"; do
+  echo "📋 Creating policy: $policy"
+  az policy definition create \
+    --name "$policy" \
+    --display-name "$(echo $policy | sed 's/-/ /g' | sed 's/\b\w/\U&/g')" \
+    --description "Auto-deployed Falcon policy: $policy" \
+    --rules @${policy}.json \
+    --mode "Microsoft.Kubernetes.Data" \
+    --${SCOPE_TYPE} ${SCOPE_ID}
+done
+
+# Update initiative with correct scope
+if [ "$SCOPE_TYPE" = "management-group" ]; then
+  sed -i "s/{managementGroupId}/${SCOPE_ID}/g" falcon-initiative.json
+else
+  # For subscription scope, update the path format
+  sed -i 's|/providers/Microsoft.Management/managementGroups/{managementGroupId}/providers/Microsoft.Authorization/policyDefinitions/|/providers/Microsoft.Authorization/policyDefinitions/|g' falcon-initiative.json
+fi
+
+# Create policy initiative
+echo "📦 Creating policy initiative..."
+az policy set-definition create \
+  --name "falcon-security-baseline" \
+  --display-name "Falcon Security Baseline Initiative" \
+  --description "Deploy CrowdStrike Falcon security across AKS clusters" \
+  --definitions @falcon-initiative.json \
+  --${SCOPE_TYPE} ${SCOPE_ID}
+
+# Assign the initiative
+echo "🎯 Assigning policy initiative..."
+az policy assignment create \
+  --name "falcon-security-assignment" \
+  --display-name "Falcon Security Baseline Assignment" \
+  --policy-set-definition "falcon-security-baseline" \
+  --scope "/subscriptions/${SCOPE_ID}" \
+  --identity-scope "/subscriptions/${SCOPE_ID}" \
+  --location "East US" \
+  --assign-identity \
+  --params "{
+    \"falconClientId\": {\"value\": \"${FALCON_CLIENT_ID}\"},
+    \"falconClientSecretUri\": {\"value\": \"${KEYVAULT_URI}\"},
+    \"falconCloud\": {\"value\": \"autodiscover\"},
+    \"updatePolicy\": {\"value\": \"platform_default\"},
+    \"enableImageScanning\": {\"value\": true},
+    \"admissionFailurePolicy\": {\"value\": \"Fail\"}
+  }"
+
+# Grant Key Vault access
+echo "🔑 Granting Key Vault access..."
+POLICY_IDENTITY=$(az policy assignment show \
+  --name "falcon-security-assignment" \
+  --scope "/subscriptions/${SCOPE_ID}" \
+  --query identity.principalId -o tsv)
+
+az keyvault set-policy \
+  --name "$(echo ${KEYVAULT_URI} | cut -d'/' -f3 | cut -d'.' -f1)" \
+  --object-id $POLICY_IDENTITY \
+  --secret-permissions get list
+
+echo "✅ Falcon Azure Policies deployed successfully!"
+echo "📊 Check compliance: az policy state list --policy-assignment falcon-security-assignment"
+```
+
+Save this script as `deploy-policies.sh`, make it executable (`chmod +x deploy-policies.sh`), and run it after updating the configuration variables.
+
+## 🚀 Prerequisites
 
 1. **Azure Key Vault** with your Falcon API credentials:
    ```bash
