@@ -277,50 +277,9 @@ Save this script as `deploy-policies.sh`, make it executable (`chmod +x deploy-p
    - Azure Monitor enabled
    - Managed identity with Key Vault access
 
-### Step 1: Deploy Policy Initiative
+## 📋 Post-Deployment Verification
 
-```bash
-# Create the policy initiative
-az policy set-definition create \
-  --name "falcon-security-baseline" \
-  --display-name "Falcon Security Baseline Initiative" \
-  --description "Deploy CrowdStrike Falcon security across AKS clusters" \
-  --definitions @falcon-initiative.json \
-  --management-group "your-mg-id"
-
-# Assign the initiative to your subscription/resource group
-az policy assignment create \
-  --name "falcon-security-assignment" \
-  --display-name "Falcon Security Baseline Assignment" \
-  --policy-set-definition "falcon-security-baseline" \
-  --scope "/subscriptions/your-sub-id" \
-  --identity-scope "/subscriptions/your-sub-id" \
-  --location "East US" \
-  --assign-identity \
-  --params '{
-    "falconClientId": {"value": "YOUR_FALCON_CLIENT_ID"},
-    "falconClientSecretUri": {"value": "https://your-keyvault.vault.azure.net/secrets/falcon-client-secret"},
-    "falconCloud": {"value": "autodiscover"},
-    "updatePolicy": {"value": "platform_default"},
-    "enableImageScanning": {"value": true},
-    "admissionFailurePolicy": {"value": "Fail"}
-  }'
-```
-
-### Step 2: Grant Key Vault Access
-
-```bash
-# Get the policy assignment's managed identity
-POLICY_IDENTITY=$(az policy assignment show --name "falcon-security-assignment" --scope "/subscriptions/your-sub-id" --query identity.principalId -o tsv)
-
-# Grant Key Vault access
-az keyvault set-policy \
-  --name "your-keyvault" \
-  --object-id $POLICY_IDENTITY \
-  --secret-permissions get list
-```
-
-### Step 3: Verify Deployment
+After running the deployment script or manual steps above, verify that everything is working:
 
 ```bash
 # Check policy compliance
