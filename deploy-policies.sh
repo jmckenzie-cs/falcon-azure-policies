@@ -1,6 +1,11 @@
 #!/bin/bash
 set -e
 
+# Prerequisites: Make sure these resources exist before running this script:
+# 1. Resource Group: az group create --name "your-rg" --location "eastus"
+# 2. Key Vault: az keyvault create --name "your-keyvault" --resource-group "your-rg" --location "eastus"
+# 3. Key Vault Secret: az keyvault secret set --vault-name "your-keyvault" --name "falcon-client-secret" --value "YOUR_SECRET"
+
 # Configuration - UPDATE THESE VALUES
 SCOPE_TYPE="subscription"  # or "management-group"
 SCOPE_ID="your-subscription-id"  # or management group ID

@@ -252,15 +252,27 @@ Save this script as `deploy-policies.sh`, make it executable (`chmod +x deploy-p
 
 ## 🚀 Prerequisites
 
-1. **Azure Key Vault** with your Falcon API credentials:
+1. **Azure Resource Group** (required for Key Vault and other resources):
    ```bash
+   # Create resource group if it doesn't exist
+   az group create --name "mckenzie-rg" --location "eastus"
+   ```
+
+2. **Azure Key Vault** with your Falcon API credentials:
+   ```bash
+   # Create Key Vault (requires resource group)
+   az keyvault create \
+     --name "mckenzie-keyvault" \
+     --resource-group "mckenzie-rg" \
+     --location "eastus"
+
    # Create Key Vault secret for Falcon client secret
-   az keyvault secret set --vault-name "your-keyvault" \
+   az keyvault secret set --vault-name "mckenzie-keyvault" \
      --name "falcon-client-secret" \
      --value "YOUR_FALCON_CLIENT_SECRET"
    ```
 
-2. **AKS Cluster** with:
+3. **AKS Cluster** with:
    - Linux node pools
    - Azure Monitor enabled
    - Managed identity with Key Vault access
