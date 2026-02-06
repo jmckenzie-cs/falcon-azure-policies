@@ -176,8 +176,9 @@ For automated deployment, you can use this all-in-one script:
 set -e
 
 # Configuration
-SCOPE_TYPE="subscription"  # or "management-group"
+SCOPE_TYPE="subscription"  # Policy definitions must be at subscription or mg level
 SCOPE_ID="your-subscription-id"  # or management group ID
+RESOURCE_GROUP="your-resource-group"  # Optional: for resource group scoping
 FALCON_CLIENT_ID="YOUR_FALCON_CLIENT_ID"
 KEYVAULT_URI="https://your-keyvault.vault.azure.net/secrets/falcon-client-secret"
 
@@ -215,12 +216,22 @@ az policy set-definition create \
 
 # Assign the initiative
 echo "🎯 Assigning policy initiative..."
+
+# Determine scope for assignment
+if [ -n "$RESOURCE_GROUP" ]; then
+  ASSIGNMENT_SCOPE="/subscriptions/${SCOPE_ID}/resourceGroups/${RESOURCE_GROUP}"
+  echo "   📍 Scoping to Resource Group: ${RESOURCE_GROUP}"
+else
+  ASSIGNMENT_SCOPE="/subscriptions/${SCOPE_ID}"
+  echo "   📍 Scoping to Subscription: ${SCOPE_ID}"
+fi
+
 az policy assignment create \
   --name "falcon-security-assignment" \
   --display-name "Falcon Security Baseline Assignment" \
   --policy-set-definition "falcon-security-baseline" \
-  --scope "/subscriptions/${SCOPE_ID}" \
-  --identity-scope "/subscriptions/${SCOPE_ID}" \
+  --scope "${ASSIGNMENT_SCOPE}" \
+  --identity-scope "${ASSIGNMENT_SCOPE}" \
   --location "East US" \
   --assign-identity \
   --params "{
@@ -236,7 +247,7 @@ az policy assignment create \
 echo "🔑 Granting Key Vault access..."
 POLICY_IDENTITY=$(az policy assignment show \
   --name "falcon-security-assignment" \
-  --scope "/subscriptions/${SCOPE_ID}" \
+  --scope "${ASSIGNMENT_SCOPE}" \
   --query identity.principalId -o tsv)
 
 az keyvault set-policy \
@@ -249,6 +260,55 @@ echo "📊 Check compliance: az policy state list --policy-assignment falcon-sec
 ```
 
 Save this script as `deploy-policies.sh`, make it executable (`chmod +x deploy-policies.sh`), and run it after updating the configuration variables.
+
+## 🎯 Resource Group Scoping
+
+**Preferred Approach**: You can scope the policy assignment to a specific resource group for more granular control:
+
+```bash
+#!/bin/bash
+set -e
+
+# Configuration for Resource Group Scoping
+SCOPE_TYPE="subscription"  # Policy definitions must be at subscription level
+SCOPE_ID="your-subscription-id"
+RESOURCE_GROUP="your-target-resource-group"  # Set this for RG scoping
+FALCON_CLIENT_ID="YOUR_FALCON_CLIENT_ID"
+KEYVAULT_URI="https://your-keyvault.vault.azure.net/secrets/falcon-client-secret"
+
+# The script will automatically assign policies to the resource group
+# if RESOURCE_GROUP is set, otherwise it assigns to the subscription
+```
+
+### **Benefits of Resource Group Scoping:**
+- ✅ **Granular Control**: Only affects AKS clusters in that specific resource group
+- ✅ **Environment Isolation**: Separate policies for dev/staging/prod resource groups
+- ✅ **Reduced Blast Radius**: Limits impact to specific resources
+- ✅ **Easier Management**: Clear boundaries for different teams/projects
+
+### **Manual Resource Group Assignment:**
+
+For manual deployment, modify Step 4 to target your resource group:
+
+```bash
+# Assign the initiative to your RESOURCE GROUP
+az policy assignment create \
+  --name "falcon-security-assignment" \
+  --display-name "Falcon Security Baseline Assignment" \
+  --policy-set-definition "falcon-security-baseline" \
+  --scope "/subscriptions/your-subscription-id/resourceGroups/your-resource-group" \
+  --identity-scope "/subscriptions/your-subscription-id/resourceGroups/your-resource-group" \
+  --location "East US" \
+  --assign-identity \
+  --params '{
+    "falconClientId": {"value": "YOUR_FALCON_CLIENT_ID"},
+    "falconClientSecretUri": {"value": "https://your-keyvault.vault.azure.net/secrets/falcon-client-secret"},
+    "falconCloud": {"value": "autodiscover"},
+    "updatePolicy": {"value": "platform_default"},
+    "enableImageScanning": {"value": true},
+    "admissionFailurePolicy": {"value": "Fail"}
+  }'
+```
 
 ## 🚀 Prerequisites
 

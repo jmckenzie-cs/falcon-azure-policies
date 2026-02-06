@@ -7,8 +7,9 @@ set -e
 # 3. Key Vault Secret: az keyvault secret set --vault-name "your-keyvault" --name "falcon-client-secret" --value "YOUR_SECRET"
 
 # Configuration - UPDATE THESE VALUES
-SCOPE_TYPE="subscription"  # or "management-group"
+SCOPE_TYPE="subscription"  # Policy definitions must be at subscription or mg level
 SCOPE_ID="your-subscription-id"  # or management group ID
+RESOURCE_GROUP=""  # Optional: set for resource group scoping (leave empty for subscription)
 FALCON_CLIENT_ID="YOUR_FALCON_CLIENT_ID"
 KEYVAULT_URI="https://your-keyvault.vault.azure.net/secrets/falcon-client-secret"
 
@@ -52,12 +53,22 @@ mv falcon-initiative-backup.json falcon-initiative.json
 
 # Assign the initiative
 echo "🎯 Assigning policy initiative..."
+
+# Determine scope for assignment
+if [ -n "$RESOURCE_GROUP" ]; then
+  ASSIGNMENT_SCOPE="/subscriptions/${SCOPE_ID}/resourceGroups/${RESOURCE_GROUP}"
+  echo "   📍 Scoping to Resource Group: ${RESOURCE_GROUP}"
+else
+  ASSIGNMENT_SCOPE="/subscriptions/${SCOPE_ID}"
+  echo "   📍 Scoping to Subscription: ${SCOPE_ID}"
+fi
+
 az policy assignment create \
   --name "falcon-security-assignment" \
   --display-name "Falcon Security Baseline Assignment" \
   --policy-set-definition "falcon-security-baseline" \
-  --scope "/subscriptions/${SCOPE_ID}" \
-  --identity-scope "/subscriptions/${SCOPE_ID}" \
+  --scope "${ASSIGNMENT_SCOPE}" \
+  --identity-scope "${ASSIGNMENT_SCOPE}" \
   --location "East US" \
   --assign-identity \
   --params "{
@@ -73,7 +84,7 @@ az policy assignment create \
 echo "🔑 Granting Key Vault access..."
 POLICY_IDENTITY=$(az policy assignment show \
   --name "falcon-security-assignment" \
-  --scope "/subscriptions/${SCOPE_ID}" \
+  --scope "${ASSIGNMENT_SCOPE}" \
   --query identity.principalId -o tsv)
 
 KEYVAULT_NAME=$(echo ${KEYVAULT_URI} | cut -d'/' -f3 | cut -d'.' -f1)
