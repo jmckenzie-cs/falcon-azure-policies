@@ -115,8 +115,30 @@ az policy set-definition create \
 
 Now assign the initiative to your target scope with your specific parameters:
 
+**For Resource Group Scoping (Recommended):**
 ```bash
-# Assign the initiative to your subscription/resource group
+# Assign the initiative to your RESOURCE GROUP
+az policy assignment create \
+  --name "falcon-security-assignment" \
+  --display-name "Falcon Security Baseline Assignment" \
+  --policy-set-definition "falcon-security-baseline" \
+  --scope "/subscriptions/your-subscription-id/resourceGroups/your-resource-group" \
+  --identity-scope "/subscriptions/your-subscription-id/resourceGroups/your-resource-group" \
+  --location "East US" \
+  --assign-identity \
+  --params '{
+    "falconClientId": {"value": "YOUR_FALCON_CLIENT_ID"},
+    "falconClientSecretUri": {"value": "https://your-keyvault.vault.azure.net/secrets/falcon-client-secret"},
+    "falconCloud": {"value": "autodiscover"},
+    "updatePolicy": {"value": "platform_default"},
+    "enableImageScanning": {"value": true},
+    "admissionFailurePolicy": {"value": "Fail"}
+  }'
+```
+
+**For Subscription Scoping (Alternative):**
+```bash
+# Assign the initiative to your subscription
 az policy assignment create \
   --name "falcon-security-assignment" \
   --display-name "Falcon Security Baseline Assignment" \
@@ -139,6 +161,22 @@ az policy assignment create \
 
 Grant the policy assignment's managed identity access to your Key Vault:
 
+**For Resource Group Scoping:**
+```bash
+# Get the policy assignment's managed identity
+POLICY_IDENTITY=$(az policy assignment show \
+  --name "falcon-security-assignment" \
+  --scope "/subscriptions/your-subscription-id/resourceGroups/your-resource-group" \
+  --query identity.principalId -o tsv)
+
+# Grant Key Vault access
+az keyvault set-policy \
+  --name "your-keyvault" \
+  --object-id $POLICY_IDENTITY \
+  --secret-permissions get list
+```
+
+**For Subscription Scoping:**
 ```bash
 # Get the policy assignment's managed identity
 POLICY_IDENTITY=$(az policy assignment show \
