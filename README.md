@@ -34,9 +34,9 @@ cd falcon-azure-policies
 Upload each JSON file as an Azure Policy Definition:
 
 ```bash
-# Set your management group or subscription scope
-SCOPE_TYPE="management-group"  # or "subscription"
-SCOPE_ID="your-management-group-id"  # or "your-subscription-id"
+# Set your subscription or management group scope
+SCOPE_TYPE="subscription"  # or "management-group"
+SCOPE_ID="your-subscription-id"  # or "your-management-group-id"
 
 # Deploy Falcon Operator Policy
 az policy definition create \
@@ -93,11 +93,11 @@ First, update the `falcon-initiative.json` file to reference your actual managem
 # Replace {managementGroupId} with your actual management group ID
 # OR replace the path format for subscription scope
 
-# For Management Group scope:
-sed -i 's/{managementGroupId}/your-actual-mg-id/g' falcon-initiative.json
+# For Subscription scope (default):
+sed -i 's|/providers/Microsoft.Management/managementGroups/{managementGroupId}/providers/Microsoft.Authorization/policyDefinitions/|/providers/Microsoft.Authorization/policyDefinitions/|g' falcon-initiative.json
 
-# For Subscription scope, replace the entire path pattern:
-# "/providers/Microsoft.Authorization/policyDefinitions/policy-name"
+# For Management Group scope (alternative):
+sed -i 's/{managementGroupId}/your-actual-mg-id/g' falcon-initiative.json
 ```
 
 Then create the initiative:
