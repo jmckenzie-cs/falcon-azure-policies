@@ -2,6 +2,34 @@
 
 This guide provides Azure Policy definitions to automatically deploy and manage CrowdStrike Falcon security components across your AKS clusters.
 
+## 🎯 Quick Start (Recommended)
+
+**NEW: Simplified Bicep Approach**
+
+For a much simpler deployment experience, use the Bicep approach:
+
+```bash
+# Deploy all policies with a single command
+./deploy-bicep.sh
+```
+
+**Benefits:**
+- ✅ 3 files instead of 15+ JSON files
+- ✅ Single deployment command
+- ✅ Built-in validation
+- ✅ Easier to maintain
+
+📖 **See [README-BICEP.md](README-BICEP.md) for the simplified Bicep approach**
+
+---
+
+## Alternative: JSON/CLI Approach
+
+The instructions below use the traditional JSON files with Azure CLI. While this works, the Bicep approach above is simpler and recommended.
+
+<details>
+<summary>Click to expand JSON/CLI deployment instructions</summary>
+
 ## 📋 Overview
 
 The Azure Policy Initiative deploys:
@@ -521,4 +549,4 @@ This Azure Policy approach provides:
 - **Native Integration**: Seamless Azure Key Vault and ACR integration
 - **Audit Trail**: Complete compliance reporting and evidence
 
-Deploy once, secure everywhere! 🚀
+Deploy once, secure everywhere! 🚀</details>
