@@ -43,7 +43,8 @@ az policy definition create \
   --name "deploy-falcon-operator" \
   --display-name "Deploy Falcon Operator" \
   --description "Deploy CrowdStrike Falcon Operator to AKS clusters" \
-  --rules @deploy-falcon-operator.json \
+  --rules @deploy-falcon-operator-rule.json \
+  --params @deploy-falcon-operator-params.json \
   --mode "Microsoft.Kubernetes.Data" \
   --${SCOPE_TYPE} ${SCOPE_ID}
 
