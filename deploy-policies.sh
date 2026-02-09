@@ -24,7 +24,7 @@ for policy in "${policies[@]}"; do
     --display-name "$(echo $policy | sed 's/-/ /g' | sed 's/\b\w/\U&/g')" \
     --description "Auto-deployed Falcon policy: $policy" \
     --rules @${policy}.json \
-    --mode "Microsoft.Kubernetes.Data" \
+    --mode "Indexed" \
     --${SCOPE_TYPE} ${SCOPE_ID}
 done
 

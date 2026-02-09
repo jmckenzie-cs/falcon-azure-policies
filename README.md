@@ -45,7 +45,7 @@ az policy definition create \
   --description "Deploy CrowdStrike Falcon Operator to AKS clusters" \
   --rules @deploy-falcon-operator-rule.json \
   --params @deploy-falcon-operator-params.json \
-  --mode "Microsoft.Kubernetes.Data" \
+  --mode "Indexed" \
   --${SCOPE_TYPE} ${SCOPE_ID}
 
 # Deploy Node Sensor Policy
@@ -54,7 +54,7 @@ az policy definition create \
   --display-name "Deploy Falcon Node Sensor" \
   --description "Deploy Falcon Node Sensor DaemonSet for kernel protection" \
   --rules @deploy-falcon-node-sensor.json \
-  --mode "Microsoft.Kubernetes.Data" \
+  --mode "Indexed" \
   --${SCOPE_TYPE} ${SCOPE_ID}
 
 # Deploy Admission Controller Policy
@@ -63,7 +63,7 @@ az policy definition create \
   --display-name "Deploy Falcon Admission Controller" \
   --description "Deploy Falcon Kubernetes Admission Controller for policy enforcement" \
   --rules @deploy-falcon-admission-controller.json \
-  --mode "Microsoft.Kubernetes.Data" \
+  --mode "Indexed" \
   --${SCOPE_TYPE} ${SCOPE_ID}
 
 # Deploy Image Analyzer Policy
@@ -72,7 +72,7 @@ az policy definition create \
   --display-name "Deploy Falcon Image Analyzer" \
   --description "Deploy Falcon Image Analyzer for runtime image scanning" \
   --rules @deploy-falcon-image-analyzer.json \
-  --mode "Microsoft.Kubernetes.Data" \
+  --mode "Indexed" \
   --${SCOPE_TYPE} ${SCOPE_ID}
 
 # Deploy Compliance Audit Policy
@@ -81,7 +81,7 @@ az policy definition create \
   --display-name "Audit Falcon Security Compliance" \
   --description "Audit compliance of CrowdStrike Falcon components" \
   --rules @audit-falcon-compliance.json \
-  --mode "Microsoft.Kubernetes.Data" \
+  --mode "Indexed" \
   --${SCOPE_TYPE} ${SCOPE_ID}
 ```
 

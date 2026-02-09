@@ -2,7 +2,7 @@
   "properties": {
     "displayName": "Deploy Falcon Image Analyzer",
     "policyType": "Custom",
-    "mode": "Microsoft.Kubernetes.Data",
+    "mode": "Indexed",
     "description": "Deploy CrowdStrike Falcon Image Analyzer for runtime image scanning and assessment",
     "metadata": {
       "category": "Kubernetes",
