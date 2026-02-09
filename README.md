@@ -53,7 +53,8 @@ az policy definition create \
   --name "deploy-falcon-node-sensor" \
   --display-name "Deploy Falcon Node Sensor" \
   --description "Deploy Falcon Node Sensor DaemonSet for kernel protection" \
-  --rules @deploy-falcon-node-sensor.json \
+  --rules @deploy-falcon-node-sensor-rule.json \
+  --params @deploy-falcon-node-sensor-params.json \
   --mode "Indexed" \
   --${SCOPE_TYPE} ${SCOPE_ID}
 
@@ -62,7 +63,8 @@ az policy definition create \
   --name "deploy-falcon-admission-controller" \
   --display-name "Deploy Falcon Admission Controller" \
   --description "Deploy Falcon Kubernetes Admission Controller for policy enforcement" \
-  --rules @deploy-falcon-admission-controller.json \
+  --rules @deploy-falcon-admission-controller-rule.json \
+  --params @deploy-falcon-admission-controller-params.json \
   --mode "Indexed" \
   --${SCOPE_TYPE} ${SCOPE_ID}
 
@@ -71,7 +73,8 @@ az policy definition create \
   --name "deploy-falcon-image-analyzer" \
   --display-name "Deploy Falcon Image Analyzer" \
   --description "Deploy Falcon Image Analyzer for runtime image scanning" \
-  --rules @deploy-falcon-image-analyzer.json \
+  --rules @deploy-falcon-image-analyzer-rule.json \
+  --params @deploy-falcon-image-analyzer-params.json \
   --mode "Indexed" \
   --${SCOPE_TYPE} ${SCOPE_ID}
 
@@ -80,7 +83,8 @@ az policy definition create \
   --name "audit-falcon-compliance" \
   --display-name "Audit Falcon Security Compliance" \
   --description "Audit compliance of CrowdStrike Falcon components" \
-  --rules @audit-falcon-compliance.json \
+  --rules @audit-falcon-compliance-rule.json \
+  --params @audit-falcon-compliance-params.json \
   --mode "Indexed" \
   --${SCOPE_TYPE} ${SCOPE_ID}
 ```

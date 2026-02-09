@@ -1,0 +1,56 @@
+{
+  "effect": {
+    "type": "String",
+    "metadata": {
+      "displayName": "Effect",
+      "description": "Enable or disable the execution of the policy"
+    },
+    "allowedValues": [
+      "DeployIfNotExists",
+      "AuditIfNotExists",
+      "Disabled"
+    ],
+    "defaultValue": "DeployIfNotExists"
+  },
+  "falconClientId": {
+    "type": "String",
+    "metadata": {
+      "displayName": "Falcon Client ID",
+      "description": "CrowdStrike Falcon API Client ID"
+    }
+  },
+  "falconClientSecretUri": {
+    "type": "String",
+    "metadata": {
+      "displayName": "Falcon Client Secret Key Vault URI",
+      "description": "Azure Key Vault URI for Falcon API Client Secret"
+    }
+  },
+  "falconCloud": {
+    "type": "String",
+    "metadata": {
+      "displayName": "Falcon Cloud Region",
+      "description": "CrowdStrike Falcon Cloud region"
+    },
+    "allowedValues": [
+      "autodiscover",
+      "us-1",
+      "us-2",
+      "eu-1",
+      "us-gov-1"
+    ],
+    "defaultValue": "autodiscover"
+  },
+  "admissionFailurePolicy": {
+    "type": "String",
+    "metadata": {
+      "displayName": "Admission Failure Policy",
+      "description": "Action when admission webhook fails"
+    },
+    "allowedValues": [
+      "Ignore",
+      "Fail"
+    ],
+    "defaultValue": "Fail"
+  }
+}

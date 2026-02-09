@@ -1,0 +1,74 @@
+{
+  "if": {
+    "field": "type",
+    "equals": "Microsoft.ContainerService/managedClusters"
+  },
+  "then": {
+    "effect": "[parameters('effect')]",
+    "details": {
+      "type": "Microsoft.ContainerService/managedClusters",
+      "evaluationDelay": "AfterProvisioning",
+      "existenceCondition": {
+        "allOf": [
+          {
+            "field": "Microsoft.ContainerService/managedClusters/addonProfiles.omsagent.enabled",
+            "equals": "true"
+          }
+        ]
+      },
+      "roleDefinitionIds": [
+        "/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c"
+      ],
+      "deployment": {
+        "properties": {
+          "mode": "Incremental",
+          "template": {
+            "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+            "contentVersion": "1.0.0.0",
+            "parameters": {
+              "clusterName": {
+                "type": "string"
+              },
+              "location": {
+                "type": "string"
+              }
+            },
+            "resources": [
+              {
+                "type": "Microsoft.Resources/deploymentScripts",
+                "apiVersion": "2020-10-01",
+                "name": "audit-falcon-compliance",
+                "location": "[parameters('location')]",
+                "kind": "AzureCLI",
+                "properties": {
+                  "azCliVersion": "2.45.0",
+                  "scriptContent": "#!/bin/bash\nset -e\n\n# Get AKS credentials\naz aks get-credentials --resource-group $AZ_RESOURCE_GROUP --name $CLUSTER_NAME --overwrite-existing\n\n# Initialize compliance report\necho \"=== Falcon Security Compliance Audit for $CLUSTER_NAME ===\"\nCOMPLIANCE_PASS=true\n\n# Check 1: Falcon Operator exists\necho \"\\n[CHECK 1] Falcon Operator Deployment\"\nif kubectl get deployment falcon-operator-controller-manager -n falcon-operator > /dev/null 2>&1; then\n    echo \"✓ PASS: Falcon Operator is deployed\"\nelse\n    echo \"✗ FAIL: Falcon Operator not found\"\n    COMPLIANCE_PASS=false\nfi\n\n# Check 2: FalconNodeSensor exists and is ready\necho \"\\n[CHECK 2] Falcon Node Sensor\"\nif kubectl get falconnodesensor -A > /dev/null 2>&1; then\n    SENSOR_COUNT=$(kubectl get falconnodesensor -A --no-headers | wc -l)\n    READY_SENSORS=$(kubectl get falconnodesensor -A -o jsonpath='{.items[?(@.status.conditions[?(@.type==\"Ready\")].status==\"True\")].metadata.name}' | wc -w)\n    echo \"✓ PASS: $SENSOR_COUNT Falcon Node Sensor(s) found, $READY_SENSORS ready\"\n    \n    # Check registry type\n    REGISTRY_TYPE=$(kubectl get falconnodesensor -A -o jsonpath='{.items[0].spec.registry.type}' 2>/dev/null || echo \"unknown\")\n    if [[ \"$REGISTRY_TYPE\" == \"acr\" ]]; then\n        echo \"✓ PASS: Using ACR registry\"\n    else\n        echo \"⚠ WARNING: Not using ACR registry (current: $REGISTRY_TYPE)\"\n    fi\nelse\n    echo \"✗ FAIL: No Falcon Node Sensors found\"\n    COMPLIANCE_PASS=false\nfi\n\n# Check 3: FalconAdmission exists and webhook is configured\necho \"\\n[CHECK 3] Falcon Admission Controller\"\nif kubectl get falconadmission -A > /dev/null 2>&1; then\n    ADM_COUNT=$(kubectl get falconadmission -A --no-headers | wc -l)\n    echo \"✓ PASS: $ADM_COUNT Falcon Admission Controller(s) found\"\n    \n    # Check ValidatingWebhookConfiguration\n    if kubectl get validatingwebhookconfiguration | grep -q falcon; then\n        echo \"✓ PASS: Falcon ValidatingWebhookConfiguration found\"\n    else\n        echo \"⚠ WARNING: Falcon ValidatingWebhookConfiguration not found\"\n    fi\n    \n    # Check failure policy\n    FAILURE_POLICY=$(kubectl get falconadmission -A -o jsonpath='{.items[0].spec.admission.failurePolicy}' 2>/dev/null || echo \"unknown\")\n    echo \"ℹ INFO: Admission failure policy: $FAILURE_POLICY\"\nelse\n    echo \"✗ FAIL: No Falcon Admission Controllers found\"\n    COMPLIANCE_PASS=false\nfi\n\n# Check 4: FalconImageAnalyzer (optional)\necho \"\\n[CHECK 4] Falcon Image Analyzer (Optional)\"\nif kubectl get falconimageanalyzer -A > /dev/null 2>&1; then\n    IAR_COUNT=$(kubectl get falconimageanalyzer -A --no-headers | wc -l)\n    echo \"✓ PASS: $IAR_COUNT Falcon Image Analyzer(s) found\"\nelse\n    echo \"ℹ INFO: No Falcon Image Analyzers found (optional component)\"\nfi\n\n# Check 5: Namespace security\necho \"\\n[CHECK 5] Namespace Security\"\nFALCON_NAMESPACES=$(kubectl get ns -l crowdstrike.com/component --no-headers 2>/dev/null | wc -l || echo \"0\")\nif [[ $FALCON_NAMESPACES -gt 0 ]]; then\n    echo \"✓ PASS: $FALCON_NAMESPACES Falcon-managed namespaces found\"\nelse\n    echo \"⚠ WARNING: No labeled Falcon namespaces found\"\nfi\n\n# Check 6: Pod Security Standards\necho \"\\n[CHECK 6] Pod Security Standards\"\nPRIVILEGED_PODS=$(kubectl get pods -A -o jsonpath='{.items[?(@.spec.securityContext.privileged==true)].metadata.name}' | wc -w)\necho \"ℹ INFO: $PRIVILEGED_PODS privileged pods running (Falcon Node Sensor requires privileged access)\"\n\n# Final compliance result\necho \"\\n=== COMPLIANCE SUMMARY ===\"\nif $COMPLIANCE_PASS; then\n    echo \"✓ OVERALL: COMPLIANT - All critical Falcon components are deployed\"\n    exit 0\nelse\n    echo \"✗ OVERALL: NON-COMPLIANT - Missing critical Falcon components\"\n    exit 1\nfi",
+                  "environmentVariables": [
+                    {
+                      "name": "CLUSTER_NAME",
+                      "value": "[parameters('clusterName')]"
+                    },
+                    {
+                      "name": "AZ_RESOURCE_GROUP",
+                      "value": "[resourceGroup().name]"
+                    }
+                  ],
+                  "retentionInterval": "P1D",
+                  "timeout": "PT30M"
+                }
+              }
+            ]
+          },
+          "parameters": {
+            "clusterName": {
+              "value": "[field('name')]"
+            },
+            "location": {
+              "value": "[field('location')]"
+            }
+          }
+        }
+      }
+    }
+  }
+}

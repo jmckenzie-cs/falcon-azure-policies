@@ -1,0 +1,111 @@
+{
+  "if": {
+    "field": "type",
+    "equals": "Microsoft.ContainerService/managedClusters"
+  },
+  "then": {
+    "effect": "[parameters('effect')]",
+    "details": {
+      "type": "Microsoft.ContainerService/managedClusters",
+      "roleDefinitionIds": [
+        "/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c"
+      ],
+      "deployment": {
+        "properties": {
+          "mode": "Incremental",
+          "template": {
+            "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentTemplate.json#",
+            "contentVersion": "1.0.0.0",
+            "parameters": {
+              "clusterName": {
+                "type": "string"
+              },
+              "location": {
+                "type": "string"
+              },
+              "falconClientId": {
+                "type": "string"
+              },
+              "falconClientSecretUri": {
+                "type": "string"
+              },
+              "acrName": {
+                "type": "string"
+              },
+              "falconCloud": {
+                "type": "string"
+              },
+              "admissionFailurePolicy": {
+                "type": "string"
+              }
+            },
+            "resources": [
+              {
+                "type": "Microsoft.Resources/deploymentScripts",
+                "apiVersion": "2020-10-01",
+                "name": "deploy-falcon-admission-controller",
+                "location": "[parameters('location')]",
+                "kind": "AzureCLI",
+                "identity": {
+                  "type": "SystemAssigned"
+                },
+                "properties": {
+                  "azCliVersion": "2.45.0",
+                  "scriptContent": "#!/bin/bash\nset -e\n\n# Get AKS credentials\naz aks get-credentials --resource-group $AZ_RESOURCE_GROUP --name $CLUSTER_NAME --overwrite-existing\n\n# Create namespace if it doesn't exist\nkubectl create namespace falcon-kac --dry-run=client -o yaml | kubectl apply -f -\n\n# Get Falcon Client Secret from Key Vault\nFALCON_CLIENT_SECRET=$(az keyvault secret show --vault-name $(echo $FALCON_CLIENT_SECRET_URI | cut -d'/' -f3 | cut -d'.' -f1) --name $(echo $FALCON_CLIENT_SECRET_URI | rev | cut -d'/' -f1 | rev) --query value -o tsv)\n\n# Create Falcon API secret for admission controller\nkubectl create secret generic falcon-api-secret \\\n  --from-literal=falcon-client-id=$FALCON_CLIENT_ID \\\n  --from-literal=falcon-client-secret=$FALCON_CLIENT_SECRET \\\n  -n falcon-kac \\\n  --dry-run=client -o yaml | kubectl apply -f -\n\n# Create FalconAdmission CR\ncat <<EOF | kubectl apply -f -\napiVersion: falcon.crowdstrike.com/v1alpha1\nkind: FalconAdmission\nmetadata:\n  name: falcon-admission\n  namespace: falcon-kac\nspec:\n  falcon_api:\n    client_id: $FALCON_CLIENT_ID\n    cloud_region: $FALCON_CLOUD\n  admission:\n    replicas: 2\n    serviceAccount:\n      annotations:\n        admissions.enforcer/disabled: \"true\"\n    admissionPolicyService:\n      annotations:\n        admissions.enforcer/disabled: \"true\"\n    failurePolicy: $ADMISSION_FAILURE_POLICY\n    disabledNamespaces:\n      namespaces:\n        - kube-system\n        - kube-public\n        - falcon-system\n        - falcon-operator\n        - azure-arc\n  falconSecret:\n    enabled: true\n    namespace: falcon-kac\n    secretName: falcon-api-secret\nEOF\n\n# Wait for admission controller to be ready\necho \"Waiting for Falcon Admission Controller to be ready...\"\nkubectl wait --for=condition=Available deployment/falcon-admission -n falcon-kac --timeout=600s || true\n\n# Verify ValidatingWebhookConfiguration is created\nkubectl get validatingwebhookconfiguration falcon-kac-admission || echo \"Webhook configuration not yet ready\"\n\n# Verify deployment\nkubectl get pods -n falcon-kac\necho \"Falcon Admission Controller deployed successfully\"",
+                  "environmentVariables": [
+                    {
+                      "name": "CLUSTER_NAME",
+                      "value": "[parameters('clusterName')]"
+                    },
+                    {
+                      "name": "AZ_RESOURCE_GROUP",
+                      "value": "[resourceGroup().name]"
+                    },
+                    {
+                      "name": "FALCON_CLIENT_ID",
+                      "value": "[parameters('falconClientId')]"
+                    },
+                    {
+                      "name": "FALCON_CLIENT_SECRET_URI",
+                      "value": "[parameters('falconClientSecretUri')]"
+                    },
+                    {
+                      "name": "FALCON_CLOUD",
+                      "value": "[parameters('falconCloud')]"
+                    },
+                    {
+                      "name": "ADMISSION_FAILURE_POLICY",
+                      "value": "[parameters('admissionFailurePolicy')]"
+                    }
+                  ],
+                  "retentionInterval": "P1D",
+                  "timeout": "PT45M"
+                }
+              }
+            ]
+          },
+          "parameters": {
+            "clusterName": {
+              "value": "[field('name')]"
+            },
+            "location": {
+              "value": "[field('location')]"
+            },
+            "falconClientId": {
+              "value": "[parameters('falconClientId')]"
+            },
+            "falconClientSecretUri": {
+              "value": "[parameters('falconClientSecretUri')]"
+            },
+            "falconCloud": {
+              "value": "[parameters('falconCloud')]"
+            },
+            "admissionFailurePolicy": {
+              "value": "[parameters('admissionFailurePolicy')]"
+            }
+          }
+        }
+      }
+    }
+  }
+}
