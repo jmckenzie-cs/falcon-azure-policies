@@ -1,19 +1,20 @@
 // ============================================================================
 // Azure Policy Assignment for CrowdStrike Falcon Initiative
 // ============================================================================
-// Assigns the Falcon Security Baseline initiative to a subscription or RG
+// Assigns the Falcon Security Baseline initiative to a resource group
+// Deploy this at the RESOURCE GROUP level
 // ============================================================================
 
-targetScope = 'subscription'
-
-@description('The scope where the policy will be assigned (subscription or resource group)')
-param assignmentScope string
+targetScope = 'resourceGroup'
 
 @description('CrowdStrike Falcon API Client ID')
 param falconClientId string
 
 @description('Azure Key Vault name containing the Falcon client secret')
 param keyVaultName string
+
+@description('Name of the resource group containing the Key Vault')
+param keyVaultResourceGroup string
 
 @description('Name of the secret in Key Vault')
 param keyVaultSecretName string = 'falcon-client-secret'
@@ -80,16 +81,16 @@ param complianceEffect string = 'Audit'
 @description('Location for the managed identity')
 param location string = 'eastus'
 
-// Get the Key Vault resource ID
-var keyVaultResourceId = '/subscriptions/${subscription().subscriptionId}/resourceGroups/${resourceGroup().name}/providers/Microsoft.KeyVault/vaults/${keyVaultName}'
+// Build the Key Vault secret URI
 var falconClientSecretUri = 'https://${keyVaultName}.vault.azure.net/secrets/${keyVaultSecretName}'
 
-// Reference the existing policy initiative
+// Reference the existing policy initiative at subscription level
 resource falconInitiative 'Microsoft.Authorization/policySetDefinitions@2021-06-01' existing = {
   name: 'falcon-security-baseline'
+  scope: subscription()
 }
 
-// Create the policy assignment
+// Create the policy assignment at resource group level
 resource falconAssignment 'Microsoft.Authorization/policyAssignments@2021-06-01' = {
   name: 'falcon-security-assignment'
   location: location
@@ -98,7 +99,7 @@ resource falconAssignment 'Microsoft.Authorization/policyAssignments@2021-06-01'
   }
   properties: {
     displayName: 'CrowdStrike Falcon Security Baseline Assignment'
-    description: 'Assigns the Falcon Security Baseline initiative to monitor and deploy Falcon components across AKS clusters'
+    description: 'Assigns the Falcon Security Baseline initiative to monitor and deploy Falcon components across AKS clusters in this resource group'
     policyDefinitionId: falconInitiative.id
     parameters: {
       falconClientId: {
@@ -136,21 +137,12 @@ resource falconAssignment 'Microsoft.Authorization/policyAssignments@2021-06-01'
 }
 
 // Grant the managed identity access to Key Vault
-resource keyVaultAccessPolicy 'Microsoft.KeyVault/vaults/accessPolicies@2021-06-01-preview' = {
-  name: '${keyVaultName}/add'
-  properties: {
-    accessPolicies: [
-      {
-        tenantId: subscription().tenantId
-        objectId: falconAssignment.identity.principalId
-        permissions: {
-          secrets: [
-            'get'
-            'list'
-          ]
-        }
-      }
-    ]
+module keyVaultAccessPolicy 'keyvault-access.bicep' = {
+  name: 'grant-keyvault-access'
+  scope: resourceGroup(keyVaultResourceGroup)
+  params: {
+    keyVaultName: keyVaultName
+    principalId: falconAssignment.identity.principalId
   }
 }
 

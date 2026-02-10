@@ -35,19 +35,25 @@ az deployment sub create \
   --template-file initiative.bicep
 ```
 
-### 3. Assign the Initiative
+### 3. Assign the Initiative to a Resource Group
 
 ```bash
-# Assign to your subscription or resource group
-az deployment sub create \
+# Assign to your resource group (this targets only AKS clusters in this RG)
+az deployment group create \
   --name falcon-assignment-deployment \
-  --location eastus \
+  --resource-group YOUR_RESOURCE_GROUP \
   --template-file assignment.bicep \
-  --parameters assignmentScope='/subscriptions/YOUR_SUBSCRIPTION_ID' \
-               falconClientId='YOUR_CLIENT_ID' \
+  --parameters falconClientId='YOUR_CLIENT_ID' \
                keyVaultName='YOUR_KEYVAULT_NAME' \
+               keyVaultResourceGroup='YOUR_KEYVAULT_RG' \
                keyVaultSecretName='falcon-client-secret'
 ```
+
+**Resource Group Scoping Benefits:**
+- Only affects AKS clusters in the specified resource group
+- Better isolation between environments (dev/staging/prod)
+- Easier to manage and test policy rollouts
+- Manual control via AuditIfNotExists (default)
 
 ## Files Structure
 
@@ -55,7 +61,8 @@ az deployment sub create \
 azure-policies/
 ├── policies.bicep          # All policy definitions
 ├── initiative.bicep        # Policy initiative (grouping)
-├── assignment.bicep        # Policy assignment with parameters
+├── assignment.bicep        # Policy assignment (resource group scoped)
+├── keyvault-access.bicep   # Helper module for Key Vault permissions
 └── README-BICEP.md         # This file
 ```
 
