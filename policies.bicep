@@ -47,7 +47,7 @@ resource deployFalconOperatorPolicy 'Microsoft.Authorization/policyDefinitions@2
         details: {
           type: 'Microsoft.ContainerService/managedClusters'
           existenceCondition: {
-            field: 'Microsoft.ContainerService/managedClusters/addonProfiles.omsagent.enabled'
+            field: 'tags[\'falcon-operator-deployed\']'
             equals: 'true'
           }
           roleDefinitionIds: [
@@ -200,8 +200,8 @@ resource deployFalconNodeSensorPolicy 'Microsoft.Authorization/policyDefinitions
         details: {
           type: 'Microsoft.ContainerService/managedClusters'
           existenceCondition: {
-            field: 'Microsoft.ContainerService/managedClusters/agentPoolProfiles[*].osType'
-            equals: 'Linux'
+            field: 'tags[\'falcon-node-sensor-deployed\']'
+            equals: 'true'
           }
           roleDefinitionIds: [
             '/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c'
@@ -435,6 +435,10 @@ resource deployFalconAdmissionControllerPolicy 'Microsoft.Authorization/policyDe
         effect: '[parameters(\'effect\')]'
         details: {
           type: 'Microsoft.ContainerService/managedClusters'
+          existenceCondition: {
+            field: 'tags[\'falcon-admission-deployed\']'
+            equals: 'true'
+          }
           roleDefinitionIds: [
             '/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c'
           ]
@@ -669,6 +673,10 @@ resource deployFalconImageAnalyzerPolicy 'Microsoft.Authorization/policyDefiniti
         effect: '[parameters(\'effect\')]'
         details: {
           type: 'Microsoft.ContainerService/managedClusters'
+          existenceCondition: {
+            field: 'tags[\'falcon-image-analyzer-deployed\']'
+            equals: 'true'
+          }
           roleDefinitionIds: [
             '/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c'
           ]
@@ -862,12 +870,8 @@ resource auditFalconCompliancePolicy 'Microsoft.Authorization/policyDefinitions@
           type: 'Microsoft.ContainerService/managedClusters'
           evaluationDelay: 'AfterProvisioning'
           existenceCondition: {
-            allOf: [
-              {
-                field: 'Microsoft.ContainerService/managedClusters/addonProfiles.omsagent.enabled'
-                equals: 'true'
-              }
-            ]
+            field: 'tags[\'falcon-compliance-audited\']'
+            equals: 'true'
           }
           roleDefinitionIds: [
             '/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c'

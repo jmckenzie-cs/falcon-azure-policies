@@ -105,12 +105,58 @@ az deployment sub create \
 - Deployment history in Azure
 - Parameters file for configuration
 
+## Understanding Compliance Status
+
+**IMPORTANT:** The compliance status shown in Azure Portal is **NOT** an accurate indicator of whether Falcon is actually deployed in your clusters.
+
+### What the Compliance Status Actually Means
+
+All policies will show **Non-compliant** by default because they check for tags that don't exist on your AKS clusters:
+
+| Policy | Checks For | Default Status |
+|--------|-----------|----------------|
+| Falcon Operator | `tags['falcon-operator-deployed'] == 'true'` | Non-compliant |
+| Node Sensor | `tags['falcon-node-sensor-deployed'] == 'true'` | Non-compliant |
+| Admission Controller | `tags['falcon-admission-deployed'] == 'true'` | Non-compliant |
+| Image Analyzer | `tags['falcon-image-analyzer-deployed'] == 'true'` | Non-compliant |
+| Compliance Audit | `tags['falcon-compliance-audited'] == 'true'` | Non-compliant |
+
+### Why It's This Way
+
+- Azure Policy can only check **Azure resource properties** (like tags)
+- It **cannot** see inside Kubernetes to verify actual pod deployments
+- Non-compliant status enables you to create **remediation tasks**
+- Remediation tasks trigger the deployment scripts that install Falcon
+
+### How to Actually Deploy Falcon
+
+1. **Wait for policies to show Non-compliant** (5-10 minutes after assignment)
+2. **Go to Azure Portal** → Policy → Remediation
+3. **Create remediation task** for each policy
+4. **Select which clusters** to remediate
+5. **Verify deployment** with kubectl:
+   ```bash
+   kubectl get pods -n falcon-operator
+   kubectl get falconnodesensor -A
+   kubectl get falconadmission -A
+   kubectl get falconimageanalyzer -A
+   ```
+
+### Recommended Verification Approach
+
+Don't rely on Azure Policy compliance status. Instead, use:
+- **kubectl** to verify actual deployments
+- **Azure Monitor Container Insights** for ongoing monitoring
+- **Manual remediation tasks** to control when/where Falcon deploys
+
 ## Next Steps
 
-1. Review `policies.bicep` - contains all policy definitions
-2. Customize `assignment.bicep` with your parameters
+1. Review [policies.bicep](policies.bicep) - contains all policy definitions
+2. Customize [assignment.bicep](assignment.bicep) with your parameters
 3. Deploy with the commands above
-4. Monitor in Azure Portal → Policy
+4. Wait 5-10 minutes for compliance evaluation
+5. Create remediation tasks in Azure Portal
+6. Verify deployment with kubectl
 
 ## Troubleshooting
 
