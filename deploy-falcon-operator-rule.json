@@ -6,13 +6,11 @@
   "then": {
     "effect": "[parameters('effect')]",
     "details": {
-      "type": "Microsoft.ContainerService/managedClusters",
-      "existenceCondition": {
-        "field": "Microsoft.ContainerService/managedClusters/addonProfiles.omsagent.enabled",
-        "equals": "true"
-      },
+      "type": "Microsoft.Resources/deploymentScripts",
+      "name": "deploy-falcon-operator",
       "roleDefinitionIds": [
-        "/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c"
+        "/providers/Microsoft.Authorization/roleDefinitions/b24988ac-6180-42a0-ab88-20f7382dd24c",
+        "/providers/Microsoft.Authorization/roleDefinitions/ed7f3fbd-7b88-4dd4-9017-9adb7ce333f8"
       ],
       "deployment": {
         "properties": {
@@ -35,9 +33,15 @@
                 "name": "deploy-falcon-operator",
                 "location": "[parameters('location')]",
                 "kind": "AzureCLI",
+                "identity": {
+                  "type": "UserAssigned",
+                  "userAssignedIdentities": {
+                    "[resourceId('Microsoft.ManagedIdentity/userAssignedIdentities', 'falcon-policy-identity')]": {}
+                  }
+                },
                 "properties": {
                   "azCliVersion": "2.45.0",
-                  "scriptContent": "#!/bin/bash\nset -e\n\n# Get AKS credentials\naz aks get-credentials --resource-group $(echo $AZ_RESOURCE_GROUP) --name $CLUSTER_NAME --overwrite-existing\n\n# Deploy Falcon Operator\nkubectl apply -f https://github.com/CrowdStrike/falcon-operator/releases/latest/download/falcon-operator.yaml\n\n# Wait for operator to be ready\nkubectl wait --for=condition=Available deployment/falcon-operator-controller-manager -n falcon-operator --timeout=300s\n\n# Verify deployment\nkubectl get pods -n falcon-operator\necho \"Falcon Operator deployed successfully\"",
+                  "scriptContent": "#!/bin/bash\nset -e\n\necho \"Starting Falcon Operator deployment...\"\necho \"Cluster: $CLUSTER_NAME\"\necho \"Resource Group: $AZ_RESOURCE_GROUP\"\n\n# Get AKS credentials\necho \"Getting AKS credentials...\"\naz aks get-credentials --resource-group $AZ_RESOURCE_GROUP --name $CLUSTER_NAME --overwrite-existing\n\n# Check if Falcon Operator is already installed\nif kubectl get namespace falcon-operator &> /dev/null; then\n  echo \"Falcon Operator namespace already exists, checking deployment...\"\n  if kubectl get deployment falcon-operator-controller-manager -n falcon-operator &> /dev/null; then\n    echo \"Falcon Operator is already deployed\"\n    kubectl get pods -n falcon-operator\n    exit 0\n  fi\nfi\n\necho \"Deploying Falcon Operator...\"\nkubectl apply -f https://github.com/CrowdStrike/falcon-operator/releases/latest/download/falcon-operator.yaml\n\necho \"Waiting for operator to be ready...\"\nkubectl wait --for=condition=Available deployment/falcon-operator-controller-manager -n falcon-operator --timeout=300s || {\n  echo \"Timeout waiting for operator. Current status:\"\n  kubectl get pods -n falcon-operator\n  kubectl describe deployment falcon-operator-controller-manager -n falcon-operator\n  exit 1\n}\n\necho \"Falcon Operator deployed successfully!\"\nkubectl get pods -n falcon-operator\necho \"Deployment complete.\"",
                   "environmentVariables": [
                     {
                       "name": "CLUSTER_NAME",
